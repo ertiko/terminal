@@ -1,9 +1,7 @@
-process.stdout.write("C:\\Game> ");
+import { UserManager } from "./users/index.js";
 
-process.stdin.on("data", (data) => {
-    const input = data.toString().trim();
+const userManager = new UserManager();
 
-    console.log("Ты ввёл:", input);
+const user2 = userManager.get(51521);
 
-    process.stdout.write("C:\\Game> ");
-});
+console.log(user2);
