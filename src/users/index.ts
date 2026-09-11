@@ -31,7 +31,7 @@ export class UserManager {
     }
 
     update(user: User): User {
-        this.userDb.save(user);
+        this.userDb.update(user);
         return user;
     }
 }

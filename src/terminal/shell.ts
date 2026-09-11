@@ -1,5 +1,6 @@
 import type { User } from "../users/user.js";
 import type { GameFileSystem } from "../filesystem/index.js";
+import type { PathResolver } from "../filesystem/pathResolver.js";
 
 import { parseCommand } from "../libs/parser.js";
 import { Executor } from "./executor.js";
@@ -11,13 +12,15 @@ export class Shell {
 
     private executor: Executor;
     public fs: GameFileSystem;
+    public paths: PathResolver;
 
-    constructor(fs: GameFileSystem) {
+    constructor(fs: GameFileSystem, pathResolver: PathResolver) {
         this.currentUser = null;
         this.currentDirectoryId = null;
         this.hostname = "HackNetPc";
 
         this.fs = fs;
+        this.paths = pathResolver;
         this.executor = new Executor(this);
     }
 
@@ -52,11 +55,13 @@ export class Shell {
         let currentId: number | null = this.currentDirectoryId;
 
         while (currentId !== null) {
-            const directory = this.fs.getDirectoryById(currentId);
+            const directoryResult = this.fs.getDirectoryById(currentId);
 
-            if (!directory) {
+            if (directoryResult.success === false) {
                 return "/";
             }
+
+            const directory = directoryResult.value;
 
             if (directory.parent_id === null) {
                 break;

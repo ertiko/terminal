@@ -1,5 +1,5 @@
 import type { UserInterface } from "../users/types.js";
-import type { CommandResult } from "./types.js";
+import type { PathResolver } from "../filesystem/pathResolver.js";
 
 import { Shell } from "./shell.js";
 import { UserManager } from "../users/index.js";
@@ -10,11 +10,8 @@ export class Terminal {
     private userManager: UserManager;
     private fs: GameFileSystem;
 
-    private interactive:
-        ((input: string) => CommandResult) | null = null;
-
-    constructor(userManager: UserManager, fs: GameFileSystem) {
-        this.shell = new Shell(fs);
+    constructor(userManager: UserManager, fs: GameFileSystem, pathResolver: PathResolver) {
+        this.shell = new Shell(fs, pathResolver);
         this.userManager = userManager;
         this.fs = fs;
     }
@@ -68,7 +65,11 @@ export class Terminal {
                 console.log(`Fuck you, ${user.username}!`);
 
                 this.shell.currentUser = user;
-                this.shell.currentDirectoryId = this.fs.getRoot()!.id;
+                const rootDirectoryResult = this.fs.getRoot();
+
+                if (rootDirectoryResult.success) {
+                    this.shell.currentDirectoryId = rootDirectoryResult.value.id;
+                }
 
                 this.runShell();
             });
@@ -79,40 +80,15 @@ export class Terminal {
         process.stdout.write(this.shell.getPrompt());
 
         process.stdin.on("data", (data) => {
-            const input = data.toString().replace(/\r?\n$/, "");
+            const input = data.toString().trim();
 
-            if (this.interactive !== null) {
-                const result = this.interactive(input);
+            const output = this.shell.execute(input);
 
-                this.handleResult(result);
-
-                return;
+            if (output) {
+                process.stdout.write(output + "\n");
             }
 
-            const result = this.shell.execute(input);
-
-            this.handleResult(result);
-
-            if (this.interactive === null) {
-                process.stdout.write(this.shell.getPrompt());
-            }
+            process.stdout.write(this.shell.getPrompt());
         });
-    }
-
-    private handleResult(result: CommandResult): void {
-        if (typeof result === "string") {
-            if (result) {
-                process.stdout.write(result + "\n");
-            }
-
-            this.interactive = null;
-            return;
-        }
-
-        if (result.output) {
-            process.stdout.write(result.output + "\n");
-        }
-
-        this.interactive = result.onInput;
     }
 }

@@ -1,33 +1,8 @@
 import type { Command } from "../terminal/types.js";
 
+import { fsErrorMessages } from "../filesystem/errors.js";
+
 const mkdir: Command = (args, _stdin, shell) => {
-    let parents = false;
-    const paths: string[] = [];
-
-    for (const arg of args) {
-        switch (arg) {
-            case "-p":
-            case "--parents":
-                parents = true;
-                break;
-
-            case "--":
-                paths.push(...args.slice(args.indexOf(arg) + 1));
-                break;
-
-            default:
-                if (arg.startsWith("-")) {
-                    return `mkdir: invalid option '${arg}'`;
-                }
-
-                paths.push(arg);
-        }
-    }
-
-    if (paths.length === 0) {
-        return "mkdir: missing operand";
-    }
-
     if (shell.currentUser === null) {
         return "mkdir: no current user";
     }
@@ -36,60 +11,156 @@ const mkdir: Command = (args, _stdin, shell) => {
         return "mkdir: cannot determine current directory";
     }
 
-    for (const path of paths) {
-        const parts = path.split("/").filter(Boolean);
+    let parents = false;
+    let endOfOptions = false;
+    const paths: string[] = [];
 
-        let parentId: number | undefined = path.startsWith("/")
-            ? shell.fs.getRoot()?.id
-            : shell.currentDirectoryId;
-
-        if (parentId === undefined) {
-            return "mkdir: cannot determine current directory";
+    for (const arg of args) {
+        if (endOfOptions) {
+            paths.push(arg);
+            continue;
         }
 
-        for (let i = 0; i < parts.length; i++) {
-            const name = parts[i];
+        if (arg === "--") {
+            endOfOptions = true;
+            continue;
+        }
 
-            if (name === undefined) {
-                continue;
-            }
+        if (arg === "-p" || arg === "--parents") {
+            parents = true;
+            continue;
+        }
 
-            const last = i === parts.length - 1;
+        if (arg.startsWith("-")) {
+            return `mkdir: invalid option '${arg}'`;
+        }
 
-            const existing = shell.fs.getDirectory(parentId, name);
+        paths.push(arg);
+    }
+
+    if (paths.length === 0) {
+        return "mkdir: missing operand";
+    }
+
+    const errors: string[] = [];
+
+    for (const path of paths) {
+        if (!parents) {
+            const existing = shell.paths.resolve(
+                path,
+                shell.currentDirectoryId
+            );
 
             if (existing) {
-                if (last && !parents) {
-                    return `mkdir: cannot create directory '${path}': File exists`;
-                }
-
-                parentId = existing.id;
+                errors.push(
+                    `mkdir: cannot create directory '${path}': File already exists`
+                );
                 continue;
             }
 
-            if (!last && !parents) {
-                return `mkdir: cannot create directory '${path}': No such file or directory`;
+            const parent = shell.paths.resolveParent(
+                path,
+                shell.currentDirectoryId
+            );
+
+            const name = shell.paths.getName(path);
+
+            if (!parent || !name) {
+                errors.push(
+                    `mkdir: cannot create directory '${path}': No such directory`
+                );
+                continue;
             }
 
-            shell.fs.createDirectory(
-                parentId,
+            const resultCreate = shell.fs.createDirectory(
+                parent.id,
                 name,
                 shell.currentUser.id,
                 755
             );
 
-            const created = shell.fs.getDirectory(parentId, name);
-
-            if (!created) {
-                return `mkdir: cannot create directory '${path}'`;
+            if (!resultCreate.success) {
+                errors.push(
+                    `mkdir: cannot create directory '${path}': ${fsErrorMessages[resultCreate.error.code]}`
+                );
+                continue;
             }
 
-            parentId = created.id;
+            continue;
+        }   
+
+        const parts = shell.paths.split(path);
+
+        let current = shell.paths.getStartDirectory(path, shell.currentDirectoryId)
+
+        if (!current) {
+            errors.push(
+                `mkdir: cannot create directory '${path}'`
+            );
+            continue;
         }
 
+        for (const part of parts) {
+            if (part === ".") {
+                continue;
+            }
+
+            if (part === "..") {
+                if (current.parent_id !== null) {
+                    const parentResult =
+                        shell.fs.getDirectoryById(
+                            current.parent_id
+                        );
+
+                    if (!parentResult.success) {
+                        errors.push(
+                            `mkdir: cannot create directory '${path}'`
+                        );
+                        break;
+                    }
+
+                    current = parentResult.value;
+                }
+
+                continue;
+            }
+
+            const existingResult =
+                shell.fs.getDirectory(
+                    current.id,
+                    part
+                );
+
+            if (existingResult.success) {
+                current = existingResult.value;
+                continue;
+            }
+
+            shell.fs.createDirectory(
+                current.id,
+                part,
+                shell.currentUser.id,
+                755
+            );
+
+            const createdResult =
+                shell.fs.getDirectory(
+                    current.id,
+                    part
+                );
+
+            if (!createdResult.success) {
+                errors.push(
+                    `mkdir: cannot create directory '${path}'`
+                );
+                break;
+            }
+
+            current = createdResult.value;
+        }
     }
 
-    return "";
+    return errors.join("\n");
 };
 
 export default mkdir;

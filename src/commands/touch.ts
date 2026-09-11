@@ -1,5 +1,7 @@
 import type { Command } from "../terminal/types.js";
 
+import { fsErrorMessages } from "../filesystem/errors.js";
+
 const touch: Command = (args, _stdin, shell) => {
     if (shell.currentDirectoryId === null) {
         return "touch: cannot determine current directory";
@@ -11,11 +13,11 @@ const touch: Command = (args, _stdin, shell) => {
 
     let noCreate = false;
     let endOfOptions = false;
-    const files: string[] = [];
+    const paths: string[] = [];
 
     for (const arg of args) {
         if (endOfOptions) {
-            files.push(arg);
+            paths.push(arg);
             continue;
         }
 
@@ -33,19 +35,24 @@ const touch: Command = (args, _stdin, shell) => {
             return `touch: invalid option '${arg}'`;
         }
 
-        files.push(arg);
+        paths.push(arg);
     }
 
-    if (files.length === 0) {
+    if (paths.length === 0) {
         return "touch: missing file operand";
     }
 
     const errors: string[] = [];
 
-    for (const name of files) {
-        if (shell.fs.exists(shell.currentDirectoryId, name)) {
+    for (const path of paths) {
+        const existing = shell.paths.resolve(
+            path,
+            shell.currentDirectoryId
+        );
+
+        if (existing) {
             errors.push(
-                `touch: '${name}': File or directory already exists`
+                `touch: '${path}': File or directory already exists`
             );
             continue;
         }
@@ -54,20 +61,40 @@ const touch: Command = (args, _stdin, shell) => {
             continue;
         }
 
-        if (shell.fs.isBadName(name)) {
+        const parent = shell.paths.resolveParent(
+            path,
+            shell.currentDirectoryId
+        );
+
+        const name = shell.paths.getName(path);
+
+        if (!parent || !name) {
             errors.push(
-                `touch: cannot touch '${name}': Invalid file name`
+                `touch: cannot touch '${path}': No such file or directory`
             );
             continue;
         }
 
-        shell.fs.createFile(
-            shell.currentDirectoryId,
+        if (shell.fs.isBadName(name)) {
+            errors.push(
+                `touch: cannot touch '${path}': Invalid file name`
+            );
+            continue;
+        }
+
+        const createResult = shell.fs.createFile(
+            parent.id,
             name,
             shell.currentUser.id,
             "",
             0o644
         );
+
+        if (!createResult.success) {
+            errors.push(
+                `touch: cannot touch '${path}': ${fsErrorMessages[createResult.error.code]}`
+            );
+        }
     }
 
     return errors.join("\n");

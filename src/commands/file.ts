@@ -1,12 +1,12 @@
 import type { Command } from "../terminal/types.js";
 
-const cat: Command = (args, stdin, shell) => {
+const file: Command = (args, _stdin, shell) => {
     if (args.length === 0) {
-        return stdin;
+        return "file: missing operand";
     }
 
     if (shell.currentDirectoryId === null) {
-        return "cat: cannot determine current directory";
+        return "file: cannot determine current directory";
     }
 
     const output: string[] = [];
@@ -19,20 +19,18 @@ const cat: Command = (args, stdin, shell) => {
 
         if (!target) {
             output.push(
-                `cat: ${path}: No such file or directory`
+                `${path}: cannot open: No such file or directory`
             );
             continue;
         }
 
-        if ("content" in target) {
-            output.push(target.content);
-            continue;
-        }
-
-        output.push(`cat: ${path}: Is a directory`);
+        output.push(
+            `${path}: ${"content" in target ? "regular file" : "directory"}`
+        );
     }
 
     return output.join("\n");
 };
 
-export default cat;
+export default file;
+    

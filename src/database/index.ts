@@ -59,11 +59,7 @@ export class DatabaseManager {
         tableName: string,
         where: Record<string, unknown>
     ): void {
-        const conditions = Object.keys(where)
-            .map(column => `${column} = ?`)
-            .join(" AND ");
-
-        const values = Object.values(where);
+        const { conditions, values } = this.buildWhere(where);
 
         this.db.prepare(`
             DELETE FROM ${tableName}
@@ -75,11 +71,7 @@ export class DatabaseManager {
         tableName: string,
         where: Record<string, unknown>
     ): T[] {
-        const conditions = Object.keys(where)
-            .map(column => `${column} = ?`)
-            .join(" AND ");
-
-        const values = Object.values(where);
+        const { conditions, values } = this.buildWhere(where);
 
         return this.db
             .prepare(`
@@ -99,19 +91,17 @@ export class DatabaseManager {
             .map(column => `${column} = ?`)
             .join(", ");
 
-        const whereConditions = Object.keys(where)
-            .map(column => `${column} = ?`)
-            .join(" AND ");
+        const { conditions, values: whereValues } = this.buildWhere(where);
 
         const values = [
             ...Object.values(data),
-            ...Object.values(where)
+            ...whereValues
         ];
 
         this.db.prepare(`
             UPDATE ${tableName}
             SET ${setColumns}
-            WHERE ${whereConditions}
+            WHERE ${conditions}
         `).run(...values);
     }
 
