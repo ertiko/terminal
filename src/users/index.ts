@@ -5,7 +5,7 @@ export class UserManager {
     private userDb: UserDatabase;
 
     constructor() {
-       this.userDb = new UserDatabase();
+        this.userDb = new UserDatabase();
     }
 
     create(username: string, password: string, isRoot: number): User {
@@ -14,12 +14,20 @@ export class UserManager {
         return user;
     }
 
-    get(id: number): User | undefined {
-        return this.userDb.get(id);
+    getById(id: number): User | undefined {
+        return this.userDb.getById(id);
     }
 
-    remove(id: number): void {
-        this.userDb.remove(id);
+    getByUsername(username: string): User | undefined {
+        return this.userDb.getByUsername(username);
+    }
+
+    removeById(id: number): void {
+        this.userDb.removeById(id);
+    }
+
+    removeByUsername(username: string): void {
+        this.userDb.removeByUsername(username);
     }
 
     update(user: User): User {

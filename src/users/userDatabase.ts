@@ -13,7 +13,7 @@ export class UserDatabase {
     private createTable(): void {
         this.db.makeTable("users", {
             id: ["INTEGER", "PRIMARY KEY"],
-            username: ["TEXT", "NOT NULL"],
+            username: ["TEXT", "NOT NULL", "UNIQUE"],
             password: ["TEXT", "NOT NULL"],
             isRoot: ["INTEGER", "NOT NULL"]
         });
@@ -28,11 +28,33 @@ export class UserDatabase {
         });
     }
 
-    get(id: number): User | undefined {
-        return this.db.get("users", { id: id });
+    update(user: User): void {
+        this.db.update(
+            "users",
+            {
+                username: user.username,
+                password: user.password,
+                isRoot: user.isRoot
+            },
+            {
+                id: user.id
+            }
+        );
     }
 
-    remove(id: number): void {
-        this.db.delete("users", { id: id });
+    getById(id: number): User | undefined {
+        return this.db.get("users", { id });
+    }
+
+    getByUsername(username: string): User | undefined {
+        return this.db.get("users", { username });
+    }
+
+    removeById(id: number): void {
+        this.db.delete("users", { id });
+    }
+
+    removeByUsername(username: string): void {
+        this.db.delete("users", { username });
     }
 }

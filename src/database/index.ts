@@ -46,11 +46,7 @@ export class DatabaseManager {
         tableName: string,
         where: Record<string, unknown>
     ): T | undefined {
-        const conditions = Object.keys(where)
-            .map(column => `${column} = ?`)
-            .join(" AND ");
-
-        const values = Object.values(where);
+        const { conditions, values } = this.buildWhere(where);
 
         return this.db.prepare(`
             SELECT *
@@ -75,10 +71,68 @@ export class DatabaseManager {
         `).run(...values);
     }
 
-    getAll<T>(tableName: string): T[] {
+    getAll<T>(
+        tableName: string,
+        where: Record<string, unknown>
+    ): T[] {
+        const conditions = Object.keys(where)
+            .map(column => `${column} = ?`)
+            .join(" AND ");
+
+        const values = Object.values(where);
+
         return this.db
-            .prepare(`SELECT * FROM ${tableName}`)
-            .all() as T[];
+            .prepare(`
+                SELECT *
+                FROM ${tableName}
+                WHERE ${conditions}
+            `)
+            .all(...values) as T[];
+    }
+
+    update(
+        tableName: string,
+        data: Record<string, unknown>,
+        where: Record<string, unknown>
+    ): void {
+        const setColumns = Object.keys(data)
+            .map(column => `${column} = ?`)
+            .join(", ");
+
+        const whereConditions = Object.keys(where)
+            .map(column => `${column} = ?`)
+            .join(" AND ");
+
+        const values = [
+            ...Object.values(data),
+            ...Object.values(where)
+        ];
+
+        this.db.prepare(`
+            UPDATE ${tableName}
+            SET ${setColumns}
+            WHERE ${whereConditions}
+        `).run(...values);
+    }
+
+    private buildWhere(where: Record<string, unknown>): {
+        conditions: string;
+        values: unknown[];
+    } {
+        const conditions = Object.keys(where)
+            .map(column => {
+                if (where[column] === null) {
+                    return `${column} IS NULL`;
+                }
+
+                return `${column} = ?`;
+            })
+            .join(" AND ");
+
+        const values = Object.values(where)
+            .filter(value => value !== null);
+
+        return { conditions, values };
     }
 
     close(): void {
